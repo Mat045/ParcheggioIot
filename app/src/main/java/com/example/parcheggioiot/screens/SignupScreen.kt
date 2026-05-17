@@ -1,5 +1,5 @@
 package com.example.parcheggioiot.screens
-// prova perchè github è storto! merda github
+// prova perchè github è storto! merda github nlkòn
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
