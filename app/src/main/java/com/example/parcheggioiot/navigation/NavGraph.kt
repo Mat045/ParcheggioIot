@@ -1,40 +1,54 @@
 package com.example.parcheggioiot.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.NavType
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.parcheggioiot.screens.*
 
 @Composable
-fun NavGraph(navController: NavHostController) {
-    NavHost(
-        navController = navController,
-        startDestination = "start"
-    ) {
-        composable("start") { StartScreen(navController) }
+fun NavGraph() {
+    val navController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = "login") {
         composable("login") { LoginScreen(navController) }
         composable("signup") { SignupScreen(navController) }
-        composable("parking") { ParkingScreen(navController) }
 
-        // ABBIAMO UNIFICATO LA HOME: Ora gestisce sia "home" che "home?nomeUtente=Qualcosa"
+        // Schermata Home
         composable(
-            route = "home?nomeUtente={nomeUtente}",
+            route = "home?nomeUtente={nomeUtente}&targaUtente={targaUtente}",
             arguments = listOf(
-                navArgument("nomeUtente") {
-                    type = NavType.StringType
-                    nullable = true          // Dice ad Android che il nome può mancare
-                    defaultValue = "Utente"  // Se manca, usa "Utente" in automatico
-                }
+                navArgument("nomeUtente") { type = NavType.StringType; defaultValue = "Utente" },
+                navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStackEntry ->
             val nome = backStackEntry.arguments?.getString("nomeUtente") ?: "Utente"
-            HomeScreen(navController = navController, nomeUtente = nome)
+            val targa = backStackEntry.arguments?.getString("targaUtente") ?: ""
+            HomeScreen(navController, nome, targa)
         }
 
-        // composable("qr_cam") { QRScreen(navController) }
-        // composable("history") { HistoryScreen(navController) }
+        // Schermata QR
+        composable(
+            route = "qr?targaUtente={targaUtente}",
+            arguments = listOf(
+                navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val targa = backStackEntry.arguments?.getString("targaUtente") ?: ""
+            QRScreen(navController, targa)
+        }
+
+        // Schermata Storico
+        composable(
+            route = "history?targaUtente={targaUtente}",
+            arguments = listOf(
+                navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val targa = backStackEntry.arguments?.getString("targaUtente") ?: ""
+            HistoryScreen(navController, targa)
+        }
     }
 }

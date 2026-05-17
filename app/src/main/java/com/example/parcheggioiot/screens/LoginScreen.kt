@@ -1,20 +1,18 @@
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.hivemq.client.mqtt.MqttClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
+
 @Composable
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
@@ -50,8 +48,10 @@ fun LoginScreen(navController: NavController) {
                             if (json.getString("azione") == "LOGIN_RISPOSTA") {
                                 if (json.getBoolean("successo")) {
                                     val nomeUtente = json.getString("nome")
+                                    val targaUtente = json.getString("targa")
                                     coroutineScope.launch(Dispatchers.Main) {
-                                        navController.navigate("home?nomeUtente=$nomeUtente")
+                                        // Passiamo sia il nome che la targa alla Home dell'app
+                                        navController.navigate("home?nomeUtente=$nomeUtente&targaUtente=$targaUtente")
                                     }
                                 } else {
                                     coroutineScope.launch(Dispatchers.Main) {

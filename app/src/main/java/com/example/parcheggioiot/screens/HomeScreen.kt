@@ -1,9 +1,7 @@
 package com.example.parcheggioiot.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -12,26 +10,68 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun HomeScreen(navController: NavController, nomeUtente: String) {
-    Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: String) {
+    Scaffold { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Benvenuto, $nomeUtente!",
+                fontSize = 28.sp,
+                style = MaterialTheme.typography.headlineMedium
+            )
 
-        // MOSTRA IL NOME CHE ARRIVA DAL DATABASE / SIGNUP
-        Text(
-            text = "Benvenuto, $nomeUtente",
-            fontSize = 18.sp,
-            modifier = Modifier.align(Alignment.TopStart)
-        )
+            if (targaUtente.isNotBlank()) {
+                Text(
+                    text = "Targa associata: $targaUtente",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
-        Text("H", modifier = Modifier.align(Alignment.TopEnd).clickable { navController.navigate("history") })
+            Spacer(modifier = Modifier.height(40.dp))
 
-        Text("Vedi Parcheggio", modifier = Modifier.align(Alignment.Center).clickable { navController.navigate("parking") })
+            Button(
+                onClick = {
+                    navController.navigate("qr?targaUtente=$targaUtente")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("Apri Scanner QR")
+            }
 
-        Button(onClick = { navController.navigate("qr_cam") }, modifier = Modifier.align(Alignment.BottomEnd)) {
-            Text("QR")
-        }
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = { navController.navigate("start") }, modifier = Modifier.align(Alignment.BottomStart)) {
-            Text("Logout")
+            Button(
+                onClick = {
+                    navController.navigate("history?targaUtente=$targaUtente")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("Visualizza Storico")
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            TextButton(
+                onClick = {
+                    navController.navigate("login") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                }
+            ) {
+                Text("Logout")
+            }
         }
     }
 }
