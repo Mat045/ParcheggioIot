@@ -5,31 +5,22 @@ plugins {
 
 android {
     namespace = "com.example.parcheggioiot"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 34 // Usiamo il 34 che è lo standard super stabile attuale
 
     defaultConfig {
         applicationId = "com.example.parcheggioiot"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    // Puliamo il packaging rimuovendo i vecchi filtri di Realm e MongoDB Sync
     packaging {
         resources {
             excludes += "META-INF/native-image/org.mongodb/bson/native-image.properties"
-            // Opzionale: aggiungi questa riga se dovesse lamentarsi anche di licenze o altro in futuro
             excludes += "META-INF/LICENSE*"
-        }
-        jniLibs {
-            useLegacyPackaging = true
-        }
-        resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
@@ -53,22 +44,20 @@ android {
 }
 
 dependencies {
-    // Libreria per MongoDB Device SDK (Realm)
-    implementation("io.realm.kotlin:library-base:1.11.0")
+    // UNICO DRIVER MONGO: asincrono, nativo Kotlin, perfetto per Android mobile
+    implementation("org.mongodb:mongodb-driver-kotlin-coroutine:5.1.0")
+
+    // Android & Jetpack Compose core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
-
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
-
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-
     implementation("androidx.compose.material3:material3")
-    implementation("org.mongodb:mongodb-driver-kotlin-coroutine:5.1.0")
-    implementation("org.mongodb:mongodb-driver-sync:5.1.0")
     implementation("androidx.navigation:navigation-compose:2.8.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

@@ -1,10 +1,7 @@
 package com.example.parcheggioiot.data.model
 
-import io.realm.kotlin.types.RealmObject
-import io.realm.kotlin.types.annotations.PrimaryKey
-
-class Utente : RealmObject {
-    @PrimaryKey
+// Nessun import di Realm, classe dati pulita (opzionale, non la stiamo usando nel flusso)
+class Utente {
     var cf: String = ""
     var nome: String = ""
     var cognome: String = ""

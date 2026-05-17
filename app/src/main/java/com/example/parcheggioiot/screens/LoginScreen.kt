@@ -54,7 +54,7 @@ fun LoginScreen(navController: NavController) {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
                                 // RICORDATI: Sostituisci le "xxxx" con quelle reali del tuo link di MongoDB Atlas!
-                                val connectionString = "mongodb+srv://utente_parcheggio:ParcheggioIot2026@parcheggiocluster.xxxx.mongodb.net/?retryWrites=true&w=majority"
+                                val connectionString = "mongodb+srv://matmartini04_db_user:ParcheggioIot2026@parcheggiocluster.r45yj7e.mongodb.net/?appName=ParcheggioCluster"
                                 val mongoClient = MongoClient.create(connectionString)
                                 val database = mongoClient.getDatabase("parcheggio_db")
                                 val collection = database.getCollection<Document>("UTENTI")

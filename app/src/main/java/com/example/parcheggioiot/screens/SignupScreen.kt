@@ -7,22 +7,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.bson.Document
 
-// IMPORT FONDAMENTALI: Usiamo i driver stabili che non fanno crashare l'app
-import com.mongodb.client.MongoClients
-import com.mongodb.client.MongoCollection
+// IMPORT CORRETTI: Usiamo il driver Kotlin Coroutine ufficiale
+import com.mongodb.kotlin.client.coroutine.MongoClient
 
 @Composable
 fun SignupScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var testoErrore by remember { mutableStateOf("") }
 
     var nome by remember { mutableStateOf("") }
     var cognome by remember { mutableStateOf("") }
@@ -86,21 +86,15 @@ fun SignupScreen(navController: NavController) {
                 onClick = {
                     if (isFormValid) {
                         coroutineScope.launch(Dispatchers.IO) {
-                            var mongoClient: com.mongodb.client.MongoClient? = null
+                            var mongoClient: MongoClient? = null
                             try {
-                                // ORA AD ATLAS, DOMANI ALLA RASPBERRY: Cambierà solo questa stringa!
+                                // Stringa di connessione corretta e aggiornata al driver Kotlin
                                 val connectionString = "mongodb+srv://matmartini04_db_user:ParcheggioIot2026@parcheggiocluster.r45yj7e.mongodb.net/?appName=ParcheggioCluster"
-
-                                mongoClient = MongoClients.create(connectionString)
-                                // Usa 'val' al posto di 'const'
+                                mongoClient = MongoClient.create(connectionString)
                                 val database = mongoClient.getDatabase("parcheggio_db")
+                                val collection = database.getCollection<Document>("UTENTI")
 
-// In Kotlin basta specificare il tipo tra le parentesi angolari <Document>
-// senza dover scrivere il vecchio .class.java di Java
-                                val collection = database.getCollection("UTENTI", Document::class.java)
-// SE TI DÀ ANCORA ERRORE SULLA RIGA SOPRA, SOSTITUISCILA CON QUESTA:
-// val collection = database.getCollection("UTENTI")
-
+                                // Creazione del documento BSON da caricare su MongoDB
                                 val nuovoUtente = Document()
                                     .append("nome", nome)
                                     .append("cognome", cognome)
@@ -110,6 +104,7 @@ fun SignupScreen(navController: NavController) {
                                     .append("spesa_totale", 0.0)
                                     .append("password", password)
 
+                                // Inserimento asincrono nel database
                                 collection.insertOne(nuovoUtente)
 
                                 launch(Dispatchers.Main) {
@@ -117,13 +112,11 @@ fun SignupScreen(navController: NavController) {
                                         popUpTo("signup") { inclusive = true }
                                     }
                                 }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                            } catch (t: Throwable) {
+                                t.printStackTrace()
                                 launch(Dispatchers.Main) {
-                                    snackbarHostState.showSnackbar("Errore di connessione al DB")
+                                    testoErrore = t.toString() // <--- Salva l'errore esatto (es. "java.lang.NullPointerException")
                                 }
-                            } finally {
-                                mongoClient?.close()
                             }
                         }
                     }
@@ -132,6 +125,9 @@ fun SignupScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("REGISTRATI")
+            }
+            if (testoErrore.isNotEmpty()) {
+                Text(text = testoErrore, color = Color.Red, modifier = Modifier.padding(10.dp))
             }
         }
     }
