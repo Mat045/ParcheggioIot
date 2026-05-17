@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.parcheggioiot"
-    compileSdk = 34 // Usiamo il 34 che è lo standard super stabile attuale
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.parcheggioiot"
@@ -16,9 +16,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // Puliamo il packaging rimuovendo i vecchi filtri di Realm e MongoDB Sync
     packaging {
         resources {
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
             excludes += "META-INF/native-image/org.mongodb/bson/native-image.properties"
             excludes += "META-INF/LICENSE*"
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -44,10 +45,9 @@ android {
 }
 
 dependencies {
-    // UNICO DRIVER MONGO: asincrono, nativo Kotlin, perfetto per Android mobile
     implementation("org.mongodb:mongodb-driver-kotlin-coroutine:5.1.0")
+    implementation("com.hivemq:hivemq-mqtt-client:1.3.3")
 
-    // Android & Jetpack Compose core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")

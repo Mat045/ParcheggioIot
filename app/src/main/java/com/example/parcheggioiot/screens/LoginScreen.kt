@@ -1,19 +1,20 @@
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.hivemq.client.mqtt.MqttClient
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull // IMPORT FONDAMENTALE PER IL Flow di Kotlin
 import kotlinx.coroutines.launch
-import org.bson.Document
-import com.mongodb.client.model.Filters
-import com.mongodb.kotlin.client.coroutine.MongoClient
-
+import org.json.JSONObject
+import java.util.UUID
 @Composable
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
@@ -21,6 +22,53 @@ fun LoginScreen(navController: NavController) {
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val mqttClient = remember {
+        MqttClient.builder()
+            .useMqttVersion3()
+            .identifier(UUID.randomUUID().toString())
+            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
+            .serverPort(8883)
+            .sslWithDefaultConfig()
+            .simpleAuth()
+            .username("esp32")
+            .password("Iot12345678".toByteArray())
+            .applySimpleAuth()
+            .buildAsync()
+    }
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                mqttClient.connect().get()
+                mqttClient.subscribeWith()
+                    .topicFilter("parcheggio/app/risposta")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes)
+                        try {
+                            val json = JSONObject(payload)
+                            if (json.getString("azione") == "LOGIN_RISPOSTA") {
+                                if (json.getBoolean("successo")) {
+                                    val nomeUtente = json.getString("nome")
+                                    coroutineScope.launch(Dispatchers.Main) {
+                                        navController.navigate("home?nomeUtente=$nomeUtente")
+                                    }
+                                } else {
+                                    coroutineScope.launch(Dispatchers.Main) {
+                                        snackbarHostState.showSnackbar("Email o Password errati!")
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    .send()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -52,41 +100,15 @@ fun LoginScreen(navController: NavController) {
                 onClick = {
                     if (email.isNotBlank() && pass.isNotBlank()) {
                         coroutineScope.launch(Dispatchers.IO) {
-                            try {
-                                // RICORDATI: Sostituisci le "xxxx" con quelle reali del tuo link di MongoDB Atlas!
-                                val connectionString = "mongodb+srv://matmartini04_db_user:ParcheggioIot2026@parcheggiocluster.r45yj7e.mongodb.net/?appName=ParcheggioCluster"
-                                val mongoClient = MongoClient.create(connectionString)
-                                val database = mongoClient.getDatabase("parcheggio_db")
-                                val collection = database.getCollection<Document>("UTENTI")
-
-                                // Cerchiamo l'utente. Grazie all'import "kotlinx.coroutines.flow.firstOrNull", ora funzionerà!
-                                val utenteTrovato = collection.find(
-                                    Filters.and(
-                                        Filters.eq("mail", email),
-                                        Filters.eq("password", pass)
-                                    )
-                                ).firstOrNull()
-
-                                mongoClient.close()
-
-                                if (utenteTrovato != null) {
-                                    // Accediamo in modo sicuro al campo "nome" convertendolo in Stringa
-                                    val nomeUtente = utenteTrovato["nome"]?.toString() ?: "Utente"
-
-                                    launch(Dispatchers.Main) {
-                                        navController.navigate("home?nomeUtente=$nomeUtente")
-                                    }
-                                } else {
-                                    launch(Dispatchers.Main) {
-                                        snackbarHostState.showSnackbar("Email o Password errati!")
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                launch(Dispatchers.Main) {
-                                    snackbarHostState.showSnackbar("Errore di connessione al database")
-                                }
+                            val jsonReq = JSONObject().apply {
+                                put("azione", "LOGIN")
+                                put("mail", email)
+                                put("password", pass)
                             }
+                            mqttClient.publishWith()
+                                .topic("parcheggio/app/login")
+                                .payload(jsonReq.toString().toByteArray())
+                                .send()
                         }
                     }
                 },

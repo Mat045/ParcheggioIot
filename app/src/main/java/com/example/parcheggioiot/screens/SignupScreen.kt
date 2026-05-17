@@ -7,22 +7,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.hivemq.client.mqtt.MqttClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.bson.Document
-
-// IMPORT CORRETTI: Usiamo il driver Kotlin Coroutine ufficiale
-import com.mongodb.kotlin.client.coroutine.MongoClient
+import org.json.JSONObject
+import java.util.UUID
 
 @Composable
 fun SignupScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var testoErrore by remember { mutableStateOf("") }
 
     var nome by remember { mutableStateOf("") }
     var cognome by remember { mutableStateOf("") }
@@ -37,6 +34,54 @@ fun SignupScreen(navController: NavController) {
             cf.length == 16 &&
             targa.length == 7 &&
             password.length >= 5
+
+    val mqttClient = remember {
+        MqttClient.builder()
+            .useMqttVersion3()
+            .identifier(UUID.randomUUID().toString())
+            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
+            .serverPort(8883)
+            .sslWithDefaultConfig()
+            .simpleAuth()
+            .username("esp32")
+            .password("Iot12345678".toByteArray())
+            .applySimpleAuth()
+            .buildAsync()
+    }
+
+    LaunchedEffect(Unit) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                mqttClient.connect().get()
+                mqttClient.subscribeWith()
+                    .topicFilter("parcheggio/app/risposta")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes)
+                        try {
+                            val json = JSONObject(payload)
+                            if (json.getString("azione") == "SIGNUP_RISPOSTA") {
+                                if (json.getBoolean("successo")) {
+                                    coroutineScope.launch(Dispatchers.Main) {
+                                        navController.navigate("home?nomeUtente=$nome") {
+                                            popUpTo("signup") { inclusive = true }
+                                        }
+                                    }
+                                } else {
+                                    coroutineScope.launch(Dispatchers.Main) {
+                                        snackbarHostState.showSnackbar("Errore durante la registrazione!")
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    .send()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -86,38 +131,19 @@ fun SignupScreen(navController: NavController) {
                 onClick = {
                     if (isFormValid) {
                         coroutineScope.launch(Dispatchers.IO) {
-                            var mongoClient: MongoClient? = null
-                            try {
-                                // Stringa di connessione corretta e aggiornata al driver Kotlin
-                                val connectionString = "mongodb+srv://matmartini04_db_user:ParcheggioIot2026@parcheggiocluster.r45yj7e.mongodb.net/?appName=ParcheggioCluster"
-                                mongoClient = MongoClient.create(connectionString)
-                                val database = mongoClient.getDatabase("parcheggio_db")
-                                val collection = database.getCollection<Document>("UTENTI")
-
-                                // Creazione del documento BSON da caricare su MongoDB
-                                val nuovoUtente = Document()
-                                    .append("nome", nome)
-                                    .append("cognome", cognome)
-                                    .append("mail", mail)
-                                    .append("cf", cf)
-                                    .append("targa", targa)
-                                    .append("spesa_totale", 0.0)
-                                    .append("password", password)
-
-                                // Inserimento asincrono nel database
-                                collection.insertOne(nuovoUtente)
-
-                                launch(Dispatchers.Main) {
-                                    navController.navigate("home?nomeUtente=$nome") {
-                                        popUpTo("signup") { inclusive = true }
-                                    }
-                                }
-                            } catch (t: Throwable) {
-                                t.printStackTrace()
-                                launch(Dispatchers.Main) {
-                                    testoErrore = t.toString() // <--- Salva l'errore esatto (es. "java.lang.NullPointerException")
-                                }
+                            val jsonReq = JSONObject().apply {
+                                put("azione", "SIGNUP")
+                                put("nome", nome)
+                                put("cognome", cognome)
+                                put("mail", mail)
+                                put("cf", cf)
+                                put("targa", targa)
+                                put("password", password)
                             }
+                            mqttClient.publishWith()
+                                .topic("parcheggio/app/signup")
+                                .payload(jsonReq.toString().toByteArray())
+                                .send()
                         }
                     }
                 },
@@ -125,9 +151,6 @@ fun SignupScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("REGISTRATI")
-            }
-            if (testoErrore.isNotEmpty()) {
-                Text(text = testoErrore, color = Color.Red, modifier = Modifier.padding(10.dp))
             }
         }
     }
