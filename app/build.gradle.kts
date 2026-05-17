@@ -26,6 +26,12 @@ android {
             // Opzionale: aggiungi questa riga se dovesse lamentarsi anche di licenze o altro in futuro
             excludes += "META-INF/LICENSE*"
         }
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 
     buildTypes {
@@ -61,7 +67,7 @@ dependencies {
 
     implementation("androidx.compose.material3:material3")
     implementation("org.mongodb:mongodb-driver-kotlin-coroutine:5.1.0")
-
+    implementation("org.mongodb:mongodb-driver-sync:5.1.0")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
