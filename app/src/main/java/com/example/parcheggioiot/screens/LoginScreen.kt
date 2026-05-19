@@ -1,6 +1,5 @@
 package com.example.parcheggioiot.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -13,11 +12,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.hivemq.client.mqtt.MqttClient
+import com.example.parcheggioiot.network.MqttManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
 
 @Composable
 fun LoginScreen(navController: NavController) {
@@ -27,30 +25,15 @@ fun LoginScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Palette Colori Personalizzata Dark Blue
-    val SfondoScuro = Color(0xFF121824)    // Blu/Grigio molto scuro
-    val SuperficieCard = Color(0xFF1E2638) // Grigio bluastro per i pannelli
-    val BluPrimario = Color(0xFF3B82F6)    // Blu moderno per i bottoni principali
-
-    val mqttClient = remember {
-        MqttClient.builder()
-            .useMqttVersion3()
-            .identifier(UUID.randomUUID().toString())
-            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
-            .serverPort(8883)
-            .sslWithDefaultConfig()
-            .simpleAuth()
-            .username("esp32")
-            .password("Iot12345678".toByteArray())
-            .applySimpleAuth()
-            .buildAsync()
-    }
+    val SfondoScuro = Color(0xFF121824)
+    val SuperficieCard = Color(0xFF1E2638)
+    val BluPrimario = Color(0xFF3B82F6)
 
     LaunchedEffect(Unit) {
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                mqttClient.connect().get()
-                mqttClient.subscribeWith()
+        // Connessione asincrona non bloccante tramite MqttManager centralizzato
+        MqttManager.connettiInBackground(
+            onSuccess = {
+                MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/risposta")
                     .callback { publish ->
                         val payload = String(publish.payloadAsBytes)
@@ -74,15 +57,18 @@ fun LoginScreen(navController: NavController) {
                         }
                     }
                     .send()
-            } catch (e: Exception) {
-                e.printStackTrace()
+            },
+            onError = {
+                coroutineScope.launch(Dispatchers.Main) {
+                    snackbarHostState.showSnackbar("Errore di rete: Broker MQTT offline")
+                }
             }
-        }
+        )
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = SfondoScuro // Sfondo generale scuro
+        containerColor = SfondoScuro
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -90,7 +76,6 @@ fun LoginScreen(navController: NavController) {
                 .padding(paddingValues),
             contentAlignment = Alignment.Center
         ) {
-            // Card centrale contenitiva per un effetto "Glow/Floating"
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,17 +139,15 @@ fun LoginScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (email.isNotBlank() && pass.isNotBlank()) {
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    val jsonReq = JSONObject().apply {
-                                        put("azione", "LOGIN")
-                                        put("mail", email)
-                                        put("password", pass)
-                                    }
-                                    mqttClient.publishWith()
-                                        .topic("parcheggio/app/login")
-                                        .payload(jsonReq.toString().toByteArray())
-                                        .send()
+                                val jsonReq = JSONObject().apply {
+                                    put("azione", "LOGIN")
+                                    put("mail", email)
+                                    put("password", pass)
                                 }
+                                MqttManager.client.publishWith()
+                                    .topic("parcheggio/app/login")
+                                    .payload(jsonReq.toString().toByteArray())
+                                    .send()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BluPrimario),

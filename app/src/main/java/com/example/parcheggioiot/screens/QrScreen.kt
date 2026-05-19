@@ -7,40 +7,59 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.hivemq.client.mqtt.MqttClient
+import com.example.parcheggioiot.network.MqttManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
 
 @Composable
 fun QRScreen(navController: NavController, targaUtente: String) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var scansioneCompletata by remember { mutableStateOf(false) }
 
-    val mqttClient = remember {
-        MqttClient.builder()
-            .useMqttVersion3()
-            .identifier(UUID.randomUUID().toString())
-            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
-            .serverPort(8883)
-            .sslWithDefaultConfig()
-            .simpleAuth()
-            .username("esp32")
-            .password("Iot12345678".toByteArray())
-            .applySimpleAuth()
-            .buildAsync()
-    }
+    var statoOperazione by remember { mutableStateOf("In attesa di scansione") }
 
     LaunchedEffect(Unit) {
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                mqttClient.connect().get()
-            } catch (e: Exception) {
-                e.printStackTrace()
+        MqttManager.connettiInBackground(
+            onSuccess = {
+                MqttManager.client.subscribeWith()
+                    .topicFilter("parcheggio/app/accessi/risposta")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes)
+                        val json = JSONObject(payload)
+                        val msg = json.getString("messaggio")
+
+                        coroutineScope.launch(Dispatchers.Main) {
+                            statoOperazione = msg
+                            snackbarHostState.showSnackbar(msg)
+                        }
+                    }
+                    .send()
+
+                MqttManager.client.subscribeWith()
+                    .topicFilter("parcheggio/app/checkout/risposta")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes)
+                        val json = JSONObject(payload)
+                        val successo = json.getBoolean("successo")
+                        val msg = json.getString("messaggio")
+
+                        coroutineScope.launch(Dispatchers.Main) {
+                            if (successo) {
+                                val costo = json.optDouble("costo", 0.0)
+                                statoOperazione = "$msg - Pagato: €$costo"
+                            } else {
+                                statoOperazione = msg
+                            }
+                            snackbarHostState.showSnackbar(msg)
+                        }
+                    }
+                    .send()
+            },
+            onError = {
+                    e -> e.printStackTrace()
             }
-        }
+        )
     }
 
     Scaffold(
@@ -52,37 +71,44 @@ fun QRScreen(navController: NavController, targaUtente: String) {
                 .padding(paddingValues),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Simulazione Scansione QR Code", style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(20.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text("Pannello Simulazione QR Code", style = MaterialTheme.typography.titleLarge)
+
+                Text(text = "Stato Corrente: $statoOperazione", style = MaterialTheme.typography.bodyMedium)
 
                 Button(
                     onClick = {
-                        if (!scansioneCompletata) {
-                            val risultatoQr = "PARCHEGGIO_INGRESSO"
-
-                            if (risultatoQr == "PARCHEGGIO_INGRESSO") {
-                                scansioneCompletata = true
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    val jsonReq = JSONObject().apply {
-                                        put("azione", "CHECKIN")
-                                        put("targa", targaUtente)
-                                    }
-                                    mqttClient.publishWith()
-                                        .topic("parcheggio/accessi")
-                                        .payload(jsonReq.toString().toByteArray())
-                                        .send()
-
-                                    launch(Dispatchers.Main) {
-                                        snackbarHostState.showSnackbar("QR Valido! Check-in inviato alla sbarra.")
-                                    }
-                                }
-                            }
+                        val jsonReq = JSONObject().apply {
+                            put("azione", "CHECKIN")
+                            put("codice_qr", "PARCHEGGIO_INGRESSO")
+                            put("targa", targaUtente)
                         }
+                        MqttManager.client.publishWith()
+                            .topic("parcheggio/accessi")
+                            .payload(jsonReq.toString().toByteArray())
+                            .send()
                     },
-                    enabled = !scansioneCompletata
+                    modifier = Modifier.fillMaxWidth(0.8f).height(50.dp)
                 ) {
-                    Text(if (scansioneCompletata) "Scansione Effettuata" else "Inquadra QR (Simula)")
+                    Text("Inquadra QR Ingresso")
+                }
+
+                Button(
+                    onClick = {
+                        val jsonReq = JSONObject().apply {
+                            put("azione", "CHECKOUT")
+                            put("codice_qr", "PARCHEGGIO_USCITA")
+                            put("targa", targaUtente)
+                        }
+                        MqttManager.client.publishWith()
+                            .topic("parcheggio/app/checkout")
+                            .payload(jsonReq.toString().toByteArray())
+                            .send()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth(0.8f).height(50.dp)
+                ) {
+                    Text("Inquadra QR Uscita (Richiedi Sblocco)")
                 }
             }
         }

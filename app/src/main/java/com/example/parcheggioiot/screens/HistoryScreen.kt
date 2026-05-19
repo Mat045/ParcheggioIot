@@ -9,12 +9,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.hivemq.client.mqtt.MqttClient
+import com.example.parcheggioiot.network.MqttManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.UUID
 
 @Composable
 fun HistoryScreen(navController: NavController, targaUtente: String) {
@@ -22,26 +21,10 @@ fun HistoryScreen(navController: NavController, targaUtente: String) {
     val listaPermanenze = remember { mutableStateListOf<JSONObject>() }
     var inCaricamento by remember { mutableStateOf(true) }
 
-    val mqttClient = remember {
-        MqttClient.builder()
-            .useMqttVersion3()
-            .identifier(UUID.randomUUID().toString())
-            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
-            .serverPort(8883)
-            .sslWithDefaultConfig()
-            .simpleAuth()
-            .username("esp32")
-            .password("Iot12345678".toByteArray())
-            .applySimpleAuth()
-            .buildAsync()
-    }
-
     LaunchedEffect(Unit) {
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                mqttClient.connect().get()
-
-                mqttClient.subscribeWith()
+        MqttManager.connettiInBackground(
+            onSuccess = {
+                MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/storico/risposta")
                     .callback { publish ->
                         val payload = String(publish.payloadAsBytes)
@@ -62,16 +45,15 @@ fun HistoryScreen(navController: NavController, targaUtente: String) {
                 val jsonReq = JSONObject().apply {
                     put("targa", targaUtente)
                 }
-                mqttClient.publishWith()
+                MqttManager.client.publishWith()
                     .topic("parcheggio/app/storico/richiesta")
                     .payload(jsonReq.toString().toByteArray())
                     .send()
-
-            } catch (e: Exception) {
-                e.printStackTrace()
+            },
+            onError = {
                 inCaricamento = false
             }
-        }
+        )
     }
 
     Scaffold { paddingValues ->
@@ -88,9 +70,9 @@ fun HistoryScreen(navController: NavController, targaUtente: String) {
                     items(listaPermanenze) { per ->
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Targa: ${per.optString("targa")}", style = MaterialTheme.typography.bodyLarge)
+                                Text("ID Sessione: ${per.optString("id_sessione")}", style = MaterialTheme.typography.bodyLarge)
                                 Text("Ingresso: ${per.optString("data_ingresso")}", style = MaterialTheme.typography.bodyMedium)
-                                Text("Stato: ${per.optString("stato")}", style = MaterialTheme.typography.bodySmall)
+                                Text("Stato Logico: ${per.optString("stato")}", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

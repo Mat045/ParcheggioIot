@@ -1,5 +1,5 @@
 package com.example.parcheggioiot.navigation
-//sdjlkòfjsò
+
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,7 +16,6 @@ fun NavGraph() {
         composable("login") { LoginScreen(navController) }
         composable("signup") { SignupScreen(navController) }
 
-        // Schermata Home
         composable(
             route = "home?nomeUtente={nomeUtente}&targaUtente={targaUtente}",
             arguments = listOf(
@@ -29,23 +28,17 @@ fun NavGraph() {
             HomeScreen(navController, nome, targa)
         }
 
-        // Schermata QR
         composable(
             route = "qr?targaUtente={targaUtente}",
-            arguments = listOf(
-                navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" }
-            )
+            arguments = listOf(navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" })
         ) { backStackEntry ->
             val targa = backStackEntry.arguments?.getString("targaUtente") ?: ""
             QRScreen(navController, targa)
         }
 
-        // Schermata Storico
         composable(
             route = "history?targaUtente={targaUtente}",
-            arguments = listOf(
-                navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" }
-            )
+            arguments = listOf(navArgument("targaUtente") { type = NavType.StringType; defaultValue = "" })
         ) { backStackEntry ->
             val targa = backStackEntry.arguments?.getString("targaUtente") ?: ""
             HistoryScreen(navController, targa)

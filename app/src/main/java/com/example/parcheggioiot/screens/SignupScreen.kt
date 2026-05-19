@@ -1,6 +1,5 @@
 package com.example.parcheggioiot.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,11 +13,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.hivemq.client.mqtt.MqttClient
+import com.example.parcheggioiot.network.MqttManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
 
 @Composable
 fun SignupScreen(navController: NavController) {
@@ -33,7 +31,6 @@ fun SignupScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
 
     val SfondoScuro = Color(0xFF121824)
-    val SuperficieCard = Color(0xFF1E2638)
     val BluPrimario = Color(0xFF3B82F6)
 
     val isFormValid = nome.isNotBlank() &&
@@ -43,25 +40,11 @@ fun SignupScreen(navController: NavController) {
             targa.length == 7 &&
             password.length >= 5
 
-    val mqttClient = remember {
-        MqttClient.builder()
-            .useMqttVersion3()
-            .identifier(UUID.randomUUID().toString())
-            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
-            .serverPort(8883)
-            .sslWithDefaultConfig()
-            .simpleAuth()
-            .username("esp32")
-            .password("Iot12345678".toByteArray())
-            .applySimpleAuth()
-            .buildAsync()
-    }
-
     LaunchedEffect(Unit) {
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                mqttClient.connect().get()
-                mqttClient.subscribeWith()
+        // Connessione asincrona centralizzata tramite MqttManager
+        MqttManager.connettiInBackground(
+            onSuccess = {
+                MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/risposta")
                     .callback { publish ->
                         val payload = String(publish.payloadAsBytes)
@@ -70,7 +53,7 @@ fun SignupScreen(navController: NavController) {
                             if (json.getString("azione") == "SIGNUP_RISPOSTA") {
                                 if (json.getBoolean("successo")) {
                                     coroutineScope.launch(Dispatchers.Main) {
-                                        navController.navigate("home?nomeUtente=$nome") {
+                                        navController.navigate("home?nomeUtente=$nome&targaUtente=$targa") {
                                             popUpTo("signup") { inclusive = true }
                                         }
                                     }
@@ -85,10 +68,13 @@ fun SignupScreen(navController: NavController) {
                         }
                     }
                     .send()
-            } catch (e: Exception) {
-                e.printStackTrace()
+            },
+            onError = {
+                coroutineScope.launch(Dispatchers.Main) {
+                    snackbarHostState.showSnackbar("Errore di connessione al server")
+                }
             }
-        }
+        )
     }
 
     Scaffold(
@@ -159,21 +145,19 @@ fun SignupScreen(navController: NavController) {
             Button(
                 onClick = {
                     if (isFormValid) {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            val jsonReq = JSONObject().apply {
-                                put("azione", "SIGNUP")
-                                put("nome", nome)
-                                put("cognome", cognome)
-                                put("mail", mail)
-                                put("cf", cf)
-                                put("targa", targa)
-                                put("password", password)
-                            }
-                            mqttClient.publishWith()
-                                .topic("parcheggio/app/signup")
-                                .payload(jsonReq.toString().toByteArray())
-                                .send()
+                        val jsonReq = JSONObject().apply {
+                            put("azione", "SIGNUP")
+                            put("nome", nome)
+                            put("cognome", cognome)
+                            put("mail", mail)
+                            put("cf", cf)
+                            put("targa", targa)
+                            put("password", password)
                         }
+                        MqttManager.client.publishWith()
+                            .topic("parcheggio/app/signup")
+                            .payload(jsonReq.toString().toByteArray())
+                            .send()
                     }
                 },
                 enabled = isFormValid,
