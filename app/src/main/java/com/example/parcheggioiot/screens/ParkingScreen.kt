@@ -28,15 +28,15 @@ import java.util.UUID
 fun ParkingScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
 
+    // Stati iniziali impostati su false (Verdi). Diventeranno true (Rossi) se arriva "1"
     var a1Occupato by remember { mutableStateOf(false) }
     var a2Occupato by remember { mutableStateOf(false) }
 
     val SfondoScuro = Color(0xFF121824)
     val SuperficieCard = Color(0xFF1E2638)
-    val VerdeNeon = Color(0xFF10B981) // Verde libero
-    val RossoNeon = Color(0xFFEF4444) // Rosso occupato
+    val VerdeNeon = Color(0xFF10B981) // Stato "0" -> Libero
+    val RossoNeon = Color(0xFFEF4444) // Stato "1" -> Occupato
 
-    // Client MQTT locale per questa schermata
     val mqttClient = remember {
         MqttClient.builder()
             .useMqttVersion3()
@@ -51,12 +51,14 @@ fun ParkingScreen(navController: NavController) {
             .buildAsync()
     }
 
+    // Questo blocco si avvia AUTOMATICAMENTE ogni volta che entri nella schermata
     LaunchedEffect(Unit) {
         coroutineScope.launch(Dispatchers.IO) {
             try {
+                // 1. Connessione al Broker Cloud
                 mqttClient.connect().get()
 
-                // 1. Ascolta la risposta alla richiesta iniziale (JSON globale)
+                // 2. Registrazione al topic di risposta del database
                 mqttClient.subscribeWith()
                     .topicFilter("parcheggio/app/posti/risposta")
                     .callback { publish ->
@@ -64,11 +66,17 @@ fun ParkingScreen(navController: NavController) {
                         try {
                             val json = JSONObject(payload)
                             if (json.getString("azione") == "STATO_POSTI_RISPOSTA") {
-                                val statoA1 = json.getInt("A1")
-                                val statoA2 = json.getInt("A2")
-                                // Aggiorna la UI (Jetpack Compose gestisce i thread con i MutableState)
-                                a1Occupato = (statoA1 == 1)
-                                a2Occupato = (statoA2 == 1)
+
+                                // Usiamo optString per leggere il valore come stringa ("1" o "0")
+                                // così evitiamo crash sia se il DB manda un numero, sia se manda del testo
+                                val statoA1 = json.optString("A1", "0").trim()
+                                val statoA2 = json.optString("A2", "0").trim()
+
+                                // Aggiorniamo la UI sul Thread Principale
+                                coroutineScope.launch(Dispatchers.Main) {
+                                    a1Occupato = (statoA1 == "1")
+                                    a2Occupato = (statoA2 == "1")
+                                }
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -76,25 +84,7 @@ fun ParkingScreen(navController: NavController) {
                     }
                     .send()
 
-                // 2. Ascolta gli aggiornamenti in tempo reale del Posto A1 (dal codice della Home)
-                mqttClient.subscribeWith()
-                    .topicFilter("parcheggio/posto1")
-                    .callback { publish ->
-                        val payload = String(publish.payloadAsBytes).trim()
-                        a1Occupato = (payload == "1" || payload == "OCCUPATO")
-                    }
-                    .send()
-
-                // 3. Ascolta gli aggiornamenti in tempo reale del Posto A2 (dal codice della Home)
-                mqttClient.subscribeWith()
-                    .topicFilter("parcheggio/posto2")
-                    .callback { publish ->
-                        val payload = String(publish.payloadAsBytes).trim()
-                        a2Occupato = (payload == "1" || payload == "OCCUPATO")
-                    }
-                    .send()
-
-                // 4. Invia la richiesta iniziale per popolare subito la mappa all'apertura
+                // 3. INVIO DELLA RICHIESTA IMMEDIATA DI STATO
                 val jsonReq = JSONObject().apply {
                     put("azione", "RICHIEDI_STATO_POSTI")
                 }
@@ -148,11 +138,11 @@ fun ParkingScreen(navController: NavController) {
                             for (j in 1..5) {
                                 val nomePosto = "$label$j"
 
-                                // Logica dei colori dinamica per A1 e A2, gli altri restano rossi simulati
+                                // Assegnazione dinamica del colore basata sullo stato
                                 val coloreSfondo = when (nomePosto) {
                                     "A1" -> if (a1Occupato) RossoNeon else VerdeNeon
                                     "A2" -> if (a2Occupato) RossoNeon else VerdeNeon
-                                    else -> RossoNeon
+                                    else -> RossoNeon // Gli altri rimangono rossi di default (simulati)
                                 }
 
                                 Box(
@@ -172,7 +162,6 @@ fun ParkingScreen(navController: NavController) {
                                 }
                             }
                         }
-                        // Struttura corsie del parcheggio
                         val space = if (i == 0 || i == 2 || i == 5) 24.dp else 0.dp
                         if (space > 0.dp) {
                             Spacer(modifier = Modifier.height(space))
