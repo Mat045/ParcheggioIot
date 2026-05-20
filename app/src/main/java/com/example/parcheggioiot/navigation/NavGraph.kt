@@ -15,6 +15,7 @@ fun NavGraph() {
     NavHost(navController = navController, startDestination = "login") {
         composable("login") { LoginScreen(navController) }
         composable("signup") { SignupScreen(navController) }
+        composable("parking") { ParkingScreen(navController) }
 
         composable(
             route = "home?nomeUtente={nomeUtente}&targaUtente={targaUtente}",

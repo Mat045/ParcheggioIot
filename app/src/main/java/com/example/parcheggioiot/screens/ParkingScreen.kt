@@ -33,9 +33,10 @@ fun ParkingScreen(navController: NavController) {
 
     val SfondoScuro = Color(0xFF121824)
     val SuperficieCard = Color(0xFF1E2638)
-    val VerdeNeon = Color(0xFF10B981) // Verde smeraldo brillante
-    val RossoNeon = Color(0xFFEF4444) // Rosso brillante
+    val VerdeNeon = Color(0xFF10B981) // Verde libero
+    val RossoNeon = Color(0xFFEF4444) // Rosso occupato
 
+    // Client MQTT locale per questa schermata
     val mqttClient = remember {
         MqttClient.builder()
             .useMqttVersion3()
@@ -54,6 +55,8 @@ fun ParkingScreen(navController: NavController) {
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 mqttClient.connect().get()
+
+                // 1. Ascolta la risposta alla richiesta iniziale (JSON globale)
                 mqttClient.subscribeWith()
                     .topicFilter("parcheggio/app/posti/risposta")
                     .callback { publish ->
@@ -63,6 +66,7 @@ fun ParkingScreen(navController: NavController) {
                             if (json.getString("azione") == "STATO_POSTI_RISPOSTA") {
                                 val statoA1 = json.getInt("A1")
                                 val statoA2 = json.getInt("A2")
+                                // Aggiorna la UI (Jetpack Compose gestisce i thread con i MutableState)
                                 a1Occupato = (statoA1 == 1)
                                 a2Occupato = (statoA2 == 1)
                             }
@@ -72,6 +76,25 @@ fun ParkingScreen(navController: NavController) {
                     }
                     .send()
 
+                // 2. Ascolta gli aggiornamenti in tempo reale del Posto A1 (dal codice della Home)
+                mqttClient.subscribeWith()
+                    .topicFilter("parcheggio/posto1")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes).trim()
+                        a1Occupato = (payload == "1" || payload == "OCCUPATO")
+                    }
+                    .send()
+
+                // 3. Ascolta gli aggiornamenti in tempo reale del Posto A2 (dal codice della Home)
+                mqttClient.subscribeWith()
+                    .topicFilter("parcheggio/posto2")
+                    .callback { publish ->
+                        val payload = String(publish.payloadAsBytes).trim()
+                        a2Occupato = (payload == "1" || payload == "OCCUPATO")
+                    }
+                    .send()
+
+                // 4. Invia la richiesta iniziale per popolare subito la mappa all'apertura
                 val jsonReq = JSONObject().apply {
                     put("azione", "RICHIEDI_STATO_POSTI")
                 }
@@ -111,7 +134,6 @@ fun ParkingScreen(navController: NavController) {
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // Contenitore asfalto/struttura
             Card(
                 colors = CardDefaults.cardColors(containerColor = SuperficieCard),
                 shape = RoundedCornerShape(16.dp),
@@ -126,6 +148,7 @@ fun ParkingScreen(navController: NavController) {
                             for (j in 1..5) {
                                 val nomePosto = "$label$j"
 
+                                // Logica dei colori dinamica per A1 e A2, gli altri restano rossi simulati
                                 val coloreSfondo = when (nomePosto) {
                                     "A1" -> if (a1Occupato) RossoNeon else VerdeNeon
                                     "A2" -> if (a2Occupato) RossoNeon else VerdeNeon
@@ -145,14 +168,11 @@ fun ParkingScreen(navController: NavController) {
                                         color = Color.White,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
-                                        /*******************************************************************************
-                                         * Se riscontrassi un errore di compilazione sul parametro `fontWeight`        *
-                                         * all'interno di questo specifico Text(), eliminalo e lascia solo il colore   *
-                                         *******************************************************************************/
                                     )
                                 }
                             }
                         }
+                        // Struttura corsie del parcheggio
                         val space = if (i == 0 || i == 2 || i == 5) 24.dp else 0.dp
                         if (space > 0.dp) {
                             Spacer(modifier = Modifier.height(space))
