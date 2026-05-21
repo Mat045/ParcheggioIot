@@ -1,3 +1,4 @@
+// ParkingScreen.kt
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.background
@@ -32,14 +33,12 @@ fun ParkingScreen(navController: NavController) {
 
     val SfondoScuro = Color(0xFF121824)
     val SuperficieCard = Color(0xFF1E2638)
-    val VerdeNeon = Color(0xFF10B981) // Libero
-    val RossoNeon = Color(0xFFEF4444) // Occupato
+    val VerdeNeon = Color(0xFF10B981)
+    val RossoNeon = Color(0xFFEF4444)
 
     LaunchedEffect(Unit) {
-        // Sfrutta il MqttManager condiviso per evitare collisioni di ID sul Broker Cloud
         MqttManager.connettiInBackground(
             onSuccess = {
-                // 1. Sottoscrizione al canale di risposta per lo stato complessivo dei posti
                 MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/posti/risposta")
                     .callback { publish ->
@@ -61,7 +60,6 @@ fun ParkingScreen(navController: NavController) {
                     }
                     .send()
 
-                // 2. Invio della richiesta immediata di aggiornamento al Raspberry
                 val jsonReq = JSONObject().apply {
                     put("azione", "RICHIEDI_STATO_POSTI")
                 }
@@ -71,7 +69,6 @@ fun ParkingScreen(navController: NavController) {
                     .send()
             },
             onError = {
-                // Gestione opzionale dell'errore di connessione a livello di log
                 it.printStackTrace()
             }
         )

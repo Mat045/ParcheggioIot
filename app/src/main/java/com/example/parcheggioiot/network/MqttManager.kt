@@ -1,3 +1,4 @@
+// MqttManager.kt
 package com.example.parcheggioiot.network
 
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
@@ -5,7 +6,6 @@ import com.hivemq.client.mqtt.MqttClient
 import java.util.UUID
 
 object MqttManager {
-    // Unica istanza del client condivisa tra tutte le schermate
     val client: Mqtt3AsyncClient by lazy {
         MqttClient.builder()
             .useMqttVersion3()
@@ -20,7 +20,6 @@ object MqttManager {
             .buildAsync()
     }
 
-    // Flag per tracciare lo stato della connessione evitando tentativi ridondanti
     private var isConnected = false
 
     fun connettiInBackground(onSuccess: () -> Unit, onError: (Throwable) -> Unit) {
@@ -29,7 +28,6 @@ object MqttManager {
             return
         }
 
-        // Connessione asincrona in background per non bloccare il rendering grafico
         client.connect()
             .whenComplete { _, throwable ->
                 if (throwable == null) {
