@@ -18,61 +18,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.hivemq.client.mqtt.MqttClient
+import com.example.parcheggioiot.network.MqttManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
 
 @Composable
 fun ParkingScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
 
-    // Stati iniziali impostati su false (Verdi). Diventeranno true (Rossi) se arriva "1"
     var a1Occupato by remember { mutableStateOf(false) }
     var a2Occupato by remember { mutableStateOf(false) }
 
     val SfondoScuro = Color(0xFF121824)
     val SuperficieCard = Color(0xFF1E2638)
-    val VerdeNeon = Color(0xFF10B981) // Stato "0" -> Libero
-    val RossoNeon = Color(0xFFEF4444) // Stato "1" -> Occupato
+    val VerdeNeon = Color(0xFF10B981) // Libero
+    val RossoNeon = Color(0xFFEF4444) // Occupato
 
-    val mqttClient = remember {
-        MqttClient.builder()
-            .useMqttVersion3()
-            .identifier(UUID.randomUUID().toString())
-            .serverHost("a67b59331e4e42e8bf7557cd181f3aee.s1.eu.hivemq.cloud")
-            .serverPort(8883)
-            .sslWithDefaultConfig()
-            .simpleAuth()
-            .username("esp32")
-            .password("Iot12345678".toByteArray())
-            .applySimpleAuth()
-            .buildAsync()
-    }
-
-    // Questo blocco si avvia AUTOMATICAMENTE ogni volta che entri nella schermata
     LaunchedEffect(Unit) {
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                // 1. Connessione al Broker Cloud
-                mqttClient.connect().get()
-
-                // 2. Registrazione al topic di risposta del database
-                mqttClient.subscribeWith()
+        // Sfrutta il MqttManager condiviso per evitare collisioni di ID sul Broker Cloud
+        MqttManager.connettiInBackground(
+            onSuccess = {
+                // 1. Sottoscrizione al canale di risposta per lo stato complessivo dei posti
+                MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/posti/risposta")
                     .callback { publish ->
                         val payload = String(publish.payloadAsBytes)
                         try {
                             val json = JSONObject(payload)
                             if (json.getString("azione") == "STATO_POSTI_RISPOSTA") {
-
-                                // Usiamo optString per leggere il valore come stringa ("1" o "0")
-                                // così evitiamo crash sia se il DB manda un numero, sia se manda del testo
                                 val statoA1 = json.optString("A1", "0").trim()
                                 val statoA2 = json.optString("A2", "0").trim()
 
-                                // Aggiorniamo la UI sul Thread Principale
                                 coroutineScope.launch(Dispatchers.Main) {
                                     a1Occupato = (statoA1 == "1")
                                     a2Occupato = (statoA2 == "1")
@@ -84,19 +61,20 @@ fun ParkingScreen(navController: NavController) {
                     }
                     .send()
 
-                // 3. INVIO DELLA RICHIESTA IMMEDIATA DI STATO
+                // 2. Invio della richiesta immediata di aggiornamento al Raspberry
                 val jsonReq = JSONObject().apply {
                     put("azione", "RICHIEDI_STATO_POSTI")
                 }
-                mqttClient.publishWith()
+                MqttManager.client.publishWith()
                     .topic("parcheggio/app/posti/richiesta")
                     .payload(jsonReq.toString().toByteArray())
                     .send()
-
-            } catch (e: Exception) {
-                e.printStackTrace()
+            },
+            onError = {
+                // Gestione opzionale dell'errore di connessione a livello di log
+                it.printStackTrace()
             }
-        }
+        )
     }
 
     val righe = listOf("A", "B", "C", "D", "E", "F", "G", "H", "I")
@@ -138,11 +116,10 @@ fun ParkingScreen(navController: NavController) {
                             for (j in 1..5) {
                                 val nomePosto = "$label$j"
 
-                                // Assegnazione dinamica del colore basata sullo stato
                                 val coloreSfondo = when (nomePosto) {
                                     "A1" -> if (a1Occupato) RossoNeon else VerdeNeon
                                     "A2" -> if (a2Occupato) RossoNeon else VerdeNeon
-                                    else -> RossoNeon // Gli altri rimangono rossi di default (simulati)
+                                    else -> RossoNeon
                                 }
 
                                 Box(
