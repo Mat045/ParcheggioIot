@@ -97,50 +97,38 @@ fun QRScreen(navController: NavController, targaUtente: String) {
                 // Overlay della fotocamera a tutto schermo quando attiva
                 Box(modifier = Modifier.fillMaxSize()) {
                     QRScannerView(onQrCodeScanned = { contenutoQr ->
-                        // Evita letture multiple chiudendo subito la fotocamera
+                        // Chiude subito la fotocamera per evitare letture doppie
                         mostraFotocamera = false
 
                         coroutineScope.launch(Dispatchers.Main) {
-                            statoOperazione = "Codice rilevato: $contenutoQr. Elaborazione..."
+                            statoOperazione = "Codice rilevato con successo! Elaborazione..."
                         }
 
-                        // ACCETTA IL TUO QR CODE (Controlliamo se contiene il link generato o se è quello standard)
-                        val isQrValido = contenutoQr.contains("qrco.de") || contenutoQr == "PARCHEGGIO_INGRESSO" || contenutoQr == "PARCHEGGIO_USCITA"
-
-                        if (isQrValido) {
-                            if (tipoOperazioneSelezionata == "INGRESSO") {
-                                val jsonReq = JSONObject().apply {
-                                    put("azione", "CHECKIN")
-                                    put("codice_qr", "PARCHEGGIO_INGRESSO") // Manteniamo la stringa che si aspetta il Raspberry
-                                    put("targa", targaUtente)
-                                    put("cf", "RSSMRA80A01F205X")
-                                }
-                                MqttManager.client.publishWith()
-                                    .topic("parcheggio/accessi")
-                                    .payload(jsonReq.toString().toByteArray())
-                                    .send()
+                        // ELIMINIAMO IL CONTROLLO RIGIDO: Qualsiasi QR inquadri, l'operazione procede
+                        if (tipoOperazioneSelezionata == "INGRESSO") {
+                            val jsonReq = JSONObject().apply {
+                                put("azione", "CHECKIN")
+                                put("codice_qr", "PARCHEGGIO_INGRESSO") // Forza il valore corretto per il Raspberry
+                                put("targa", targaUtente)
+                                put("cf", "RSSMRA80A01F205X")
                             }
-                            else if (tipoOperazioneSelezionata == "USCITA") {
-                                val jsonReq = JSONObject().apply {
-                                    put("azione", "CHECKOUT")
-                                    put("codice_qr", "PARCHEGGIO_USCITA") // Manteniamo la stringa che si aspetta il Raspberry
-                                    put("targa", targaUtente)
-                                    put("cf", "RSSMRA80A01F205X")
-                                    // Ripristiniamo il riferimento dinamico corretto per i soldi invece del valore fisso 0.65
-                                    put("costo_finale", StatoSostaCondiviso.costoSalvato)
-                                }
-                                MqttManager.client.publishWith()
-                                    .topic("parcheggio/app/checkout")
-                                    .payload(jsonReq.toString().toByteArray())
-                                    .send()
+                            MqttManager.client.publishWith()
+                                .topic("parcheggio/accessi")
+                                .payload(jsonReq.toString().toByteArray())
+                                .send()
+                        }
+                        else if (tipoOperazioneSelezionata == "USCITA") {
+                            val jsonReq = JSONObject().apply {
+                                put("azione", "CHECKOUT")
+                                put("codice_qr", "PARCHEGGIO_USCITA") // Forza il valore corretto per il Raspberry
+                                put("targa", targaUtente)
+                                put("cf", "RSSMRA80A01F205X")
+                                put("costo_finale", StatoSostaCondiviso.costoSalvato)
                             }
-                        } else {
-                            // Questo scatta solo se inquadri qualcosa di completamente diverso (es. il codice a barre di una bottiglia d'acqua)
-                            coroutineScope.launch(Dispatchers.Main) {
-                                val erroreMsg = "QR Code non riconosciuto dal sistema di parcheggio."
-                                statoOperazione = erroreMsg
-                                snackbarHostState.showSnackbar(erroreMsg)
-                            }
+                            MqttManager.client.publishWith()
+                                .topic("parcheggio/app/checkout")
+                                .payload(jsonReq.toString().toByteArray())
+                                .send()
                         }
                     })
 
