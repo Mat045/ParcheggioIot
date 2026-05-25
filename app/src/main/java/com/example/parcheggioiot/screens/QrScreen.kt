@@ -1,3 +1,4 @@
+// QRScreen.kt
 package com.example.parcheggioiot.screens
 
 import android.Manifest
@@ -137,7 +138,7 @@ fun QRScreen(navController: NavController, targaUtente: String) {
 
                             val jsonReq = JSONObject().apply {
                                 put("azione", "CHECKIN")
-                                put("codice_qr", "PARCHEGGIO_INGRESSO")
+                                put("codice_qr", contenutoQr.ifBlank { "PARCHEGGIO_INGRESSO" })
                                 put("targa", targaUtente)
                             }
                             MqttManager.client.publishWith()
@@ -153,7 +154,7 @@ fun QRScreen(navController: NavController, targaUtente: String) {
 
                             val jsonReq = JSONObject().apply {
                                 put("azione", "CHECKOUT")
-                                put("codice_qr", "PARCHEGGIO_USCITA")
+                                put("codice_qr", contenutoQr.ifBlank { "PARCHEGGIO_USCITA" })
                                 put("targa", targaUtente)
                                 put("costo_finale", costoAttuale)
                             }
