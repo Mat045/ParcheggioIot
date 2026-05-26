@@ -1,3 +1,4 @@
+// StartScreen.kt
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -14,12 +15,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
+/**
+ * Schermata di ingresso iniziale (Welcome Screen) dell'applicazione.
+ * Offre i punti di accesso principali per instradare l'utente verso il Login o la Registrazione.
+ */
 @Composable
 fun StartScreen(navController: NavController) {
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text("BENVENUTO", fontSize = 40.sp)
+
         Spacer(modifier = Modifier.height(50.dp))
-        Button(onClick = { navController.navigate("login") }) { Text("LOGIN") }
-        Button(onClick = { navController.navigate("signup") }) { Text("SIGNUP") }
+
+        // Reindirizzamento al modulo di autenticazione esistente
+        Button(onClick = { navController.navigate("login") }) {
+            Text("LOGIN")
+        }
+
+        // Reindirizzamento al modulo di creazione nuovo profilo IoT
+        Button(onClick = { navController.navigate("signup") }) {
+            Text("SIGNUP")
+        }
     }
 }

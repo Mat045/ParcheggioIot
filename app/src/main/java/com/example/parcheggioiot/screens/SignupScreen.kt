@@ -1,3 +1,4 @@
+// SignupScreen.kt
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+/**
+ * Schermata di registrazione per i nuovi utenti del sistema Smart Parking.
+ * Invia l'anagrafica compilata e riceve la conferma di avvenuta iscrizione dal broker IoT.
+ */
 @Composable
 fun SignupScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
@@ -40,8 +45,8 @@ fun SignupScreen(navController: NavController) {
             targa.length == 7 &&
             password.length >= 5
 
-    LaunchedEffect(Unit) {
-        // Connessione asincrona centralizzata tramite MqttManager
+    // Sottoscrizione temporanea alle risposte del server delegata al ciclo di vita del modulo
+    DisposableEffect(Unit) {
         MqttManager.connettiInBackground(
             onSuccess = {
                 MqttManager.client.subscribeWith()
@@ -75,6 +80,13 @@ fun SignupScreen(navController: NavController) {
                 }
             }
         )
+
+        // Pulizia del listener sui canali di risposta generali all'eliminazione del composable
+        onDispose {
+            MqttManager.client.unsubscribeWith()
+                .topicFilter("parcheggio/app/risposta")
+                .send()
+        }
     }
 
     Scaffold(

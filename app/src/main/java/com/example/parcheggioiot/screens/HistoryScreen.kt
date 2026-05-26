@@ -1,3 +1,4 @@
+// HistoryScreen.kt
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.*
@@ -15,15 +16,20 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Schermata dello storico che mostra l'elenco delle soste effettuate dall'utente.
+ * Invia una richiesta al broker e attende l'array JSON di risposta sul canale dedicato.
+ */
 @Composable
 fun HistoryScreen(navController: NavController, targaUtente: String) {
-    val coroutineScope = rememberCoroutineScope()
     val listaPermanenze = remember { mutableStateListOf<JSONObject>() }
     var inCaricamento by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    // Gestione del ciclo di vita per sottoscrizione e successiva pulizia dei topic
+    DisposableEffect(Unit) {
         MqttManager.connettiInBackground(
             onSuccess = {
+                // Registrazione del listener per ricevere il flusso dello storico
                 MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/storico/risposta")
                     .callback { publish ->
@@ -42,6 +48,7 @@ fun HistoryScreen(navController: NavController, targaUtente: String) {
                     }
                     .send()
 
+                // Inoltro della query per richiedere lo storico legato alla targa attuale
                 val jsonReq = JSONObject().apply {
                     put("targa", targaUtente)
                 }
@@ -54,6 +61,13 @@ fun HistoryScreen(navController: NavController, targaUtente: String) {
                 inCaricamento = false
             }
         )
+
+        // Cancellazione della sottoscrizione quando la schermata viene rimossa dal display
+        onDispose {
+            MqttManager.client.unsubscribeWith()
+                .topicFilter("parcheggio/app/storico/risposta")
+                .send()
+        }
     }
 
     Scaffold { paddingValues ->

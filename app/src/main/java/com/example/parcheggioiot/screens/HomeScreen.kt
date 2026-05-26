@@ -12,25 +12,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.parcheggioiot.network.MqttManager
-import com.example.parcheggioiot.utils.TariffaCalcolatore
-import kotlinx.coroutines.Delay
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-// Variabile globale temporanea per mantenere lo stato della sosta tra i cambi di schermata dell'app
+// Mantiene lo stato della sosta tra i cambi di schermata dell'app
 object StatoSostaCondiviso {
     var dataIniziale: String by mutableStateOf("")
-    var costoSalvato: Double by mutableStateOf(0.0)
 }
 
 @Composable
 fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: String) {
     val coroutineScope = rememberCoroutineScope()
-
-    var tempoVisualizzato by remember { mutableStateOf("00:00") }
-    var prezzoVisualizzato by remember { mutableStateOf("0.00") }
 
     val SfondoScuro = Color(0xFF121824)
     val SuperficieCard = Color(0xFF1E2638)
@@ -59,7 +52,7 @@ fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: St
                     }
                     .send()
 
-                // Ascolta la risposta di avvenuto checkout per azzerare il cronometro
+                // Ascolta la risposta di avvenuto checkout per resettare lo stato
                 MqttManager.client.subscribeWith()
                     .topicFilter("parcheggio/app/checkout/risposta")
                     .callback { publish ->
@@ -69,7 +62,6 @@ fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: St
                             if (json.getBoolean("successo")) {
                                 coroutineScope.launch(Dispatchers.Main) {
                                     StatoSostaCondiviso.dataIniziale = ""
-                                    StatoSostaCondiviso.costoSalvato = 0.0
                                 }
                             }
                         } catch (e: Exception) {
@@ -80,17 +72,6 @@ fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: St
             },
             onError = { it.printStackTrace() }
         )
-    }
-
-    // Effetto continuo che aggiorna il cronometro ogni secondo se c'è una sosta attiva
-    LaunchedEffect(StatoSostaCondiviso.dataIniziale) {
-        while (StatoSostaCondiviso.dataIniziale.isNotBlank()) {
-            val res = TariffaCalcolatore.calcolaSosta(StatoSostaCondiviso.dataIniziale)
-            tempoVisualizzato = res.first
-            prezzoVisualizzato = String.format("%.2f", res.second)
-            StatoSostaCondiviso.costoSalvato = res.second
-            delay(1000) // Aggiorna ogni secondo
-        }
     }
 
     Scaffold(containerColor = SfondoScuro) { paddingValues ->
@@ -115,18 +96,10 @@ fun HomeScreen(navController: NavController, nomeUtente: String, targaUtente: St
                     colors = CardDefaults.cardColors(containerColor = SuperficieCard)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("SOSTA ATTIVA (CALCOLO APP)", color = GialloAttenzione, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("SOSTA ATTIVA", color = GialloAttenzione, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Tempo Trascorsco", color = Color.LightGray, fontSize = 12.sp)
-                                Text(tempoVisualizzato, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Tariffa Corrente", color = Color.LightGray, fontSize = 12.sp)
-                                Text("€ $prezzoVisualizzato", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Text("Ingresso registrato il:", color = Color.LightGray, fontSize = 12.sp)
+                        Text(StatoSostaCondiviso.dataIniziale, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

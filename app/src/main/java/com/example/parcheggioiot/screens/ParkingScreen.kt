@@ -24,6 +24,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+/**
+ * Schermata di visualizzazione della mappa dei posti.
+ * Mostra in tempo reale lo stato di occupazione per i sensori smart attivi (A1 e A2).
+ */
 @Composable
 fun ParkingScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
@@ -36,7 +40,8 @@ fun ParkingScreen(navController: NavController) {
     val VerdeNeon = Color(0xFF10B981)
     val RossoNeon = Color(0xFFEF4444)
 
-    LaunchedEffect(Unit) {
+    // Sottoscrizione alle variazioni dei sensori e rimozione della stessa all'uscita della schermata
+    DisposableEffect(Unit) {
         MqttManager.connettiInBackground(
             onSuccess = {
                 MqttManager.client.subscribeWith()
@@ -60,6 +65,7 @@ fun ParkingScreen(navController: NavController) {
                     }
                     .send()
 
+                // Invia la richiesta per aggiornare istantaneamente la mappa all'avvio
                 val jsonReq = JSONObject().apply {
                     put("azione", "RICHIEDI_STATO_POSTI")
                 }
@@ -68,10 +74,15 @@ fun ParkingScreen(navController: NavController) {
                     .payload(jsonReq.toString().toByteArray())
                     .send()
             },
-            onError = {
-                it.printStackTrace()
-            }
+            onError = { it.printStackTrace() }
         )
+
+        // Scollegamento controllato dal canale per non consumare traffico o generare aggiornamenti orfani
+        onDispose {
+            MqttManager.client.unsubscribeWith()
+                .topicFilter("parcheggio/app/posti/risposta")
+                .send()
+        }
     }
 
     val righe = listOf("A", "B", "C", "D", "E", "F", "G", "H", "I")

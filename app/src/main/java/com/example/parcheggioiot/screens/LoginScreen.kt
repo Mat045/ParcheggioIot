@@ -1,3 +1,4 @@
+// LoginScreen.kt
 package com.example.parcheggioiot.screens
 
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+/**
+ * Schermata di autenticazione dell'utente.
+ * Interroga il sistema centrale tramite MQTT e attende l'esito della validazione delle credenziali.
+ */
 @Composable
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
@@ -29,8 +34,8 @@ fun LoginScreen(navController: NavController) {
     val SuperficieCard = Color(0xFF1E2638)
     val BluPrimario = Color(0xFF3B82F6)
 
-    LaunchedEffect(Unit) {
-        // Connessione asincrona non bloccante tramite MqttManager centralizzato
+    // Sottoscrizione ai canali di risposta legati all'autenticazione con pulizia automatica
+    DisposableEffect(Unit) {
         MqttManager.connettiInBackground(
             onSuccess = {
                 MqttManager.client.subscribeWith()
@@ -64,6 +69,13 @@ fun LoginScreen(navController: NavController) {
                 }
             }
         )
+
+        // Rilascio del canale di risposta all'annullamento della schermata o navigazione riuscita
+        onDispose {
+            MqttManager.client.unsubscribeWith()
+                .topicFilter("parcheggio/app/risposta")
+                .send()
+        }
     }
 
     Scaffold(
